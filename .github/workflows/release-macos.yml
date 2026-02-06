@@ -25,13 +25,16 @@ jobs:
           echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Import signing certificate (optional)
-        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
         env:
           MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
           MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         shell: bash
         run: |
+          if [[ -z "${MACOS_CERT_P12_BASE64}" || -z "${MACOS_CERT_PASSWORD}" || -z "${KEYCHAIN_PASSWORD}" ]]; then
+            echo "Signing certificate secrets not set; skipping import."
+            exit 0
+          fi
           CERT_PATH="$RUNNER_TEMP/cert.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
 

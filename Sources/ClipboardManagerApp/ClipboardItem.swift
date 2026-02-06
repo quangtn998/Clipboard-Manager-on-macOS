@@ -73,6 +73,17 @@ struct ClipboardItem: Identifiable, Equatable, Codable {
         case legacyContent = "content"
     }
 
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(displayText, forKey: .displayText)
+        try container.encodeIfPresent(rawDataBase64, forKey: .rawDataBase64)
+        try container.encodeIfPresent(filePaths, forKey: .filePaths)
+        try container.encode(copiedAt, forKey: .copiedAt)
+        try container.encode(isPinned, forKey: .isPinned)
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()

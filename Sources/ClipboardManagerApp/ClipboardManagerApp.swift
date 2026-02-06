@@ -1,9 +1,9 @@
+import AppKit
 import SwiftUI
 
 @main
 struct ClipboardManagerApp: App {
     @StateObject private var store = ClipboardStore(maxItems: 120)
-    @State private var isAboutPresented = false
 
     var body: some Scene {
         WindowGroup("Clipboard Manager") {
@@ -12,16 +12,7 @@ struct ClipboardManagerApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
-            CommandGroup(after: .appInfo) {
-                Button("About Clipboard Manager") {
-                    isAboutPresented = true
-                }
-            }
-            CommandGroup(after: .appInfo) {
-                Button("Check for Updates…") {
-                    openReleaseURL()
-                }
-            }
+            ClipboardCommands()
         }
 
         MenuBarExtra("Clipboard", systemImage: "doc.on.clipboard") {
@@ -29,16 +20,11 @@ struct ClipboardManagerApp: App {
                 .frame(width: 360, height: 420)
         }
         .menuBarExtraStyle(.window)
-        .sheet(isPresented: $isAboutPresented) {
+
+        WindowGroup("About Clipboard Manager", id: "about") {
             AboutView()
         }
-    }
-
-    private func openReleaseURL() {
-        guard let url = URL(string: "https://github.com/quangtn998/Clipboard-Manager-on-macOS/releases/latest") else {
-            return
-        }
-        NSWorkspace.shared.open(url)
+        .windowResizability(.contentSize)
     }
 }
 
@@ -158,6 +144,30 @@ struct MenuBarContent: View {
         }
         .padding(.top, 8)
         .onAppear { store.startMonitoring() }
+    }
+
+    private func openReleaseURL() {
+        guard let url = URL(string: "https://github.com/quangtn998/Clipboard-Manager-on-macOS/releases/latest") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+}
+
+struct ClipboardCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("About Clipboard Manager") {
+                openWindow(id: "about")
+            }
+        }
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") {
+                openReleaseURL()
+            }
+        }
     }
 
     private func openReleaseURL() {

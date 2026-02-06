@@ -46,7 +46,7 @@ final class ClipboardStore: ObservableObject {
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(600))
-                await self?.readPasteboardIfNeeded()
+                self?.readPasteboardIfNeeded()
             }
         }
     }
@@ -66,15 +66,15 @@ final class ClipboardStore: ObservableObject {
             pasteboard.setString(item.displayText, forType: .string)
             pasteboard.setString(item.displayText, forType: .URL)
         case .rtf:
-            if let data = item.rawDataBase64.flatMap(Data.init(base64Encoded:)) {
+            if let base64 = item.rawDataBase64, let data = Data(base64Encoded: base64) {
                 pasteboard.setData(data, forType: .rtf)
             }
         case .html:
-            if let data = item.rawDataBase64.flatMap(Data.init(base64Encoded:)) {
+            if let base64 = item.rawDataBase64, let data = Data(base64Encoded: base64) {
                 pasteboard.setData(data, forType: .html)
             }
         case .image:
-            if let data = item.rawDataBase64.flatMap(Data.init(base64Encoded:)) {
+            if let base64 = item.rawDataBase64, let data = Data(base64Encoded: base64) {
                 pasteboard.setData(data, forType: .tiff)
             }
         case .files:
