@@ -1,0 +1,67 @@
+name: release-macos
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute version/build
+        id: meta
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Import signing certificate (optional)
+        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Build app + DMG (optional sign/notarize)
+        env:
+          SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          NOTARIZE=0
+          if [[ -n "${APPLE_API_KEY_ID}" && -n "${APPLE_API_ISSUER_ID}" && -n "${APPLE_API_PRIVATE_KEY}" ]]; then
+            NOTARIZE=1
+          fi
+
+          NOTARIZE="$NOTARIZE" \
+            ./scripts/release-macos.sh "${{ steps.meta.outputs.version }}" "${{ steps.meta.outputs.build_number }}"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.dmg
