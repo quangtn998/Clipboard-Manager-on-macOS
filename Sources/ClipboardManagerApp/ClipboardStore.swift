@@ -493,6 +493,13 @@ struct ClipboardStats: Equatable {
 
     static let empty = ClipboardStats(copiedThisWeek: 0, mostCopiedKind: nil, mostCopiedPercentage: 0, oldestItemAgeDays: nil)
 
+    init(copiedThisWeek: Int, mostCopiedKind: ClipboardKind?, mostCopiedPercentage: Int, oldestItemAgeDays: Int?) {
+        self.copiedThisWeek = copiedThisWeek
+        self.mostCopiedKind = mostCopiedKind
+        self.mostCopiedPercentage = mostCopiedPercentage
+        self.oldestItemAgeDays = oldestItemAgeDays
+    }
+
     init(items: [ClipboardItem]) {
         let weekStart = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .distantPast
         copiedThisWeek = items.filter { $0.copiedAt >= weekStart }.count
@@ -657,7 +664,7 @@ private extension String {
                 let insertion = currentRow[j] + 1
                 let deletion = previousRow[j + 1] + 1
                 let substitution = previousRow[j] + cost
-                currentRow.append(min(insertion, deletion, substitution))
+                currentRow.append(Swift.min(insertion, deletion, substitution))
             }
             previousRow = currentRow
         }

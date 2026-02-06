@@ -65,7 +65,6 @@ struct ContentView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .environment(\.editMode, .constant(.active))
             .onDrop(of: [UTType.fileURL, UTType.url, UTType.text, UTType.image], isTargeted: nil) { providers in
                 store.handleDrop(providers: providers)
             }
@@ -365,7 +364,7 @@ private struct URLPreviewView: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.accentColor.opacity(0.12))
                     .frame(width: 56, height: 56)
-                    .overlay(Image(systemName: "link").foregroundStyle(.accent))
+                    .overlay(Image(systemName: "link").foregroundStyle(Color.accentColor))
             }
 
             VStack(alignment: .leading, spacing: 4) {
