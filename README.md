@@ -1,87 +1,95 @@
 # Clipboard Manager on macOS
 
-Ứng dụng quản lý lịch sử clipboard gọn nhẹ cho macOS (SwiftUI).
+A lightweight clipboard history manager for macOS (SwiftUI).
 
-## Tính năng
+## Download
 
-- Theo dõi clipboard theo thời gian thực.
-- Lưu lịch sử nhiều định dạng: text, URL, RTF, HTML, ảnh (TIFF), file path.
-- Ghim (pin) nội dung quan trọng.
-- Tìm kiếm nhanh trong lịch sử clipboard.
-- Copy lại nội dung chỉ với một nút bấm.
-- Hỗ trợ cả cửa sổ chính và menu bar extra.
+Get the latest release here:
 
-## Yêu cầu
+https://github.com/quangtn998/Clipboard-Manager-on-macOS/releases
+
+Download the `.dmg` file (for example, `ClipboardManager-<version>.dmg`) and open it to install.
+
+## Features
+
+- Real-time clipboard monitoring.
+- Multi-format history: text, URL, RTF, HTML, images (TIFF), file paths.
+- Pin important items.
+- Fast search across clipboard history.
+- One-click re-copy to the clipboard.
+- Main window + menu bar extra.
+
+## Requirements
 
 - macOS 13+
-- Xcode 15+ hoặc Swift 5.9+
+- Xcode 15+ or Swift 5.9+
 
-## Chạy ứng dụng (local)
+## Run locally
 
 ```bash
 swift run
 ```
 
-> Lưu ý: trong môi trường Linux/CI sẽ không build được do thiếu framework Apple `SwiftUI`.
+> Note: Linux/CI environments will not build due to missing Apple `SwiftUI` frameworks.
 
 ---
 
 
-## Định dạng clipboard hỗ trợ
+## Supported clipboard formats
 
 - **Text** (`public.utf8-plain-text`)
 - **URL**
 - **RTF**
 - **HTML**
-- **Image** (TIFF từ pasteboard)
-- **Files** (danh sách file/folder path)
+- **Image** (TIFF from the pasteboard)
+- **Files** (list of file/folder paths)
 
-Khi bấm copy lại từ lịch sử, app sẽ ghi lại đúng định dạng tương ứng lên clipboard.
+When you re-copy an item from history, the app writes the correct corresponding format back to the clipboard.
 
 ---
 
-## Build release macOS (Universal .app + DMG kéo-thả)
+## Build macOS release (Universal .app + drag-and-drop DMG)
 
-Script `scripts/release-macos.sh` sẽ:
+The `scripts/release-macos.sh` script will:
 
-1. Build 2 binary `arm64` và `x86_64`.
-2. Dùng `lipo` để tạo **universal binary** trong `.app`.
-3. Tạo `ClipboardManager.app`.
-4. Tạo `ClipboardManager-<version>.dmg` có shortcut `Applications`.
+1. Build `arm64` and `x86_64` binaries.
+2. Use `lipo` to create a **universal binary** inside the `.app`.
+3. Create `ClipboardManager.app`.
+4. Create `ClipboardManager-<version>.dmg` with an `Applications` shortcut.
 
-### Build nhanh (ad-hoc signing)
+### Quick build (ad-hoc signing)
 
 ```bash
 ./scripts/release-macos.sh <version> <build>
 ```
 
-Ví dụ:
+Example:
 
 ```bash
 ./scripts/release-macos.sh 1.0.0 1
 ```
 
-Artifact nằm ở thư mục `dist/`:
+Artifacts are saved in `dist/`:
 
 - `dist/ClipboardManager.app`
 - `dist/ClipboardManager-1.0.0.dmg`
 
-### Build với Developer ID signing
+### Build with Developer ID signing
 
 ```bash
 SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
 ./scripts/release-macos.sh 1.0.0 1
 ```
 
-### Build + Notarize
+### Build + notarize
 
-Chuẩn bị biến môi trường:
+Prepare environment variables:
 
 - `APPLE_API_KEY_ID`
 - `APPLE_API_ISSUER_ID`
-- `APPLE_API_PRIVATE_KEY` (base64 của file `.p8`)
+- `APPLE_API_PRIVATE_KEY` (base64 of the `.p8` file)
 
-Rồi chạy:
+Then run:
 
 ```bash
 SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
@@ -94,45 +102,45 @@ APPLE_API_PRIVATE_KEY="..." \
 
 ---
 
-## GitHub Actions tự build khi tạo tag release
+## GitHub Actions build on tag release
 
 Workflow: `.github/workflows/release-macos.yml`
 
-Khi push tag `v*` (ví dụ `v1.0.0`), workflow sẽ:
+When you push a `v*` tag (for example, `v1.0.0`), the workflow will:
 
-- build universal app,
-- tạo DMG drag-and-drop,
-- upload `.dmg` vào GitHub Release,
-- tự notarize nếu đủ secret.
+- build a universal app,
+- create a drag-and-drop DMG,
+- upload the `.dmg` to GitHub Releases,
+- notarize automatically if secrets are provided.
 
-### Secrets cần cấu hình
+### Required secrets
 
-Bắt buộc (để build ad-hoc):
-- Không cần secret.
+Required (for ad-hoc build):
+- None.
 
-Tuỳ chọn ký Developer ID:
+Optional for Developer ID signing:
 - `MACOS_SIGN_IDENTITY`
 - `MACOS_CERT_P12_BASE64`
 - `MACOS_CERT_PASSWORD`
 - `KEYCHAIN_PASSWORD`
 
-Tuỳ chọn notarize:
+Optional for notarization:
 - `APPLE_API_KEY_ID`
 - `APPLE_API_ISSUER_ID`
 - `APPLE_API_PRIVATE_KEY` (base64 `.p8`)
 
 ---
 
-## Cấu trúc chính
+## Project structure
 
-- `Sources/ClipboardManagerApp/ClipboardManagerApp.swift`: UI chính, menu bar, danh sách clipboard.
-- `Sources/ClipboardManagerApp/ClipboardStore.swift`: logic theo dõi pasteboard, lọc, ghim, lưu file.
-- `Sources/ClipboardManagerApp/ClipboardItem.swift`: model dữ liệu clipboard.
-- `scripts/release-macos.sh`: build universal app bundle + tạo DMG kéo-thả.
-- `.github/workflows/release-macos.yml`: CI build release khi push tag.
+- `Sources/ClipboardManagerApp/ClipboardManagerApp.swift`: main UI, menu bar, clipboard list.
+- `Sources/ClipboardManagerApp/ClipboardStore.swift`: pasteboard monitoring, filtering, pinning, persistence.
+- `Sources/ClipboardManagerApp/ClipboardItem.swift`: clipboard data model.
+- `scripts/release-macos.sh`: build universal app bundle + DMG.
+- `.github/workflows/release-macos.yml`: CI release build on tag push.
 
-## Dữ liệu lưu ở đâu?
+## Where is data stored?
 
-Lịch sử clipboard được lưu tại:
+Clipboard history is stored at:
 
 `~/Library/Application Support/ClipboardManagerApp/history.json`
