@@ -10,34 +10,54 @@ BUILD_NUMBER="${2:-1}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
-BUILD_DIR="$ROOT_DIR/.build/release"
-BIN_PATH="$BUILD_DIR/$PRODUCT_NAME"
+BUILD_ROOT="$ROOT_DIR/.build"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 DMG_STAGING="$DIST_DIR/dmg"
 DMG_PATH="$DIST_DIR/${APP_NAME}-${VERSION}.dmg"
+UNIVERSAL_BIN="$MACOS_DIR/$APP_NAME"
+ARM_BIN="$BUILD_ROOT/release-arm64/$PRODUCT_NAME"
+X64_BIN="$BUILD_ROOT/release-x86_64/$PRODUCT_NAME"
+
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+NOTARIZE="${NOTARIZE:-0}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "❌ Script này chỉ chạy trên macOS (cần hdiutil, codesign)."
+  echo "❌ Script này chỉ chạy trên macOS (cần xcrun, hdiutil, codesign)."
   exit 1
 fi
 
-rm -rf "$DIST_DIR"
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { echo "❌ Thiếu lệnh bắt buộc: $1"; exit 1; }
+}
+
+require_cmd swift
+require_cmd lipo
+require_cmd codesign
+require_cmd hdiutil
+require_cmd xcrun
+
+rm -rf "$DIST_DIR" "$BUILD_ROOT/release-arm64" "$BUILD_ROOT/release-x86_64"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$DMG_STAGING"
 
-echo "▶ Building Swift release binary..."
-swift build -c release
+echo "▶ Building arm64 release binary..."
+swift build -c release --arch arm64 --build-path "$BUILD_ROOT/release-arm64"
 
-if [[ ! -f "$BIN_PATH" ]]; then
-  echo "❌ Không tìm thấy binary tại: $BIN_PATH"
+echo "▶ Building x86_64 release binary..."
+swift build -c release --arch x86_64 --build-path "$BUILD_ROOT/release-x86_64"
+
+if [[ ! -f "$ARM_BIN" || ! -f "$X64_BIN" ]]; then
+  echo "❌ Không tìm thấy binary cho cả 2 kiến trúc."
+  echo "  - arm64:  $ARM_BIN"
+  echo "  - x86_64: $X64_BIN"
   exit 1
 fi
 
-echo "▶ Packaging .app bundle..."
-cp "$BIN_PATH" "$MACOS_DIR/$APP_NAME"
-chmod +x "$MACOS_DIR/$APP_NAME"
+echo "▶ Creating universal binary (.app)..."
+lipo -create -output "$UNIVERSAL_BIN" "$ARM_BIN" "$X64_BIN"
+chmod +x "$UNIVERSAL_BIN"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -72,8 +92,13 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "▶ Ad-hoc code signing..."
-codesign --force --deep --sign - "$APP_DIR"
+if [[ "$SIGN_IDENTITY" == "-" ]]; then
+  echo "▶ Ad-hoc signing app..."
+  codesign --force --deep --sign - "$APP_DIR"
+else
+  echo "▶ Signing app with Developer ID identity: $SIGN_IDENTITY"
+  codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_DIR"
+fi
 
 cp -R "$APP_DIR" "$DMG_STAGING/"
 ln -s /Applications "$DMG_STAGING/Applications"
@@ -86,6 +111,31 @@ hdiutil create \
   -format UDZO \
   "$DMG_PATH"
 
+if [[ "$SIGN_IDENTITY" != "-" ]]; then
+  echo "▶ Signing DMG..."
+  codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_PATH"
+fi
+
+if [[ "$NOTARIZE" == "1" ]]; then
+  : "${APPLE_API_KEY_ID:?Cần APPLE_API_KEY_ID khi NOTARIZE=1}"
+  : "${APPLE_API_ISSUER_ID:?Cần APPLE_API_ISSUER_ID khi NOTARIZE=1}"
+  : "${APPLE_API_PRIVATE_KEY:?Cần APPLE_API_PRIVATE_KEY (base64 của file .p8) khi NOTARIZE=1}"
+
+  KEY_FILE="$DIST_DIR/AuthKey_${APPLE_API_KEY_ID}.p8"
+  echo "$APPLE_API_PRIVATE_KEY" | base64 --decode > "$KEY_FILE"
+
+  echo "▶ Notarizing DMG..."
+  xcrun notarytool submit "$DMG_PATH" \
+    --key "$KEY_FILE" \
+    --key-id "$APPLE_API_KEY_ID" \
+    --issuer "$APPLE_API_ISSUER_ID" \
+    --wait
+
+  echo "▶ Stapling notarization ticket..."
+  xcrun stapler staple "$APP_DIR"
+  xcrun stapler staple "$DMG_PATH"
+fi
+
 echo "✅ Hoàn tất"
-echo "- App bundle: $APP_DIR"
+echo "- Universal app: $APP_DIR"
 echo "- DMG installer: $DMG_PATH"

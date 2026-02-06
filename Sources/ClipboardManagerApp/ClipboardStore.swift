@@ -37,7 +37,7 @@ final class ClipboardStore: ObservableObject {
         }
 
         return ordered(items).filter {
-            $0.content.localizedCaseInsensitiveContains(normalizedQuery)
+            $0.searchableText.localizedCaseInsensitiveContains(normalizedQuery)
         }
     }
 
@@ -58,7 +58,32 @@ final class ClipboardStore: ObservableObject {
 
     func copyToPasteboard(_ item: ClipboardItem) {
         pasteboard.clearContents()
-        pasteboard.setString(item.content, forType: .string)
+
+        switch item.kind {
+        case .text:
+            pasteboard.setString(item.displayText, forType: .string)
+        case .url:
+            pasteboard.setString(item.displayText, forType: .string)
+            pasteboard.setString(item.displayText, forType: .URL)
+        case .rtf:
+            if let data = item.rawDataBase64.flatMap(Data.init(base64Encoded:)) {
+                pasteboard.setData(data, forType: .rtf)
+            }
+        case .html:
+            if let data = item.rawDataBase64.flatMap(Data.init(base64Encoded:)) {
+                pasteboard.setData(data, forType: .html)
+            }
+        case .image:
+            if let data = item.rawDataBase64.flatMap(Data.init(base64Encoded:)) {
+                pasteboard.setData(data, forType: .tiff)
+            }
+        case .files:
+            let urls = (item.filePaths ?? []).map { URL(fileURLWithPath: $0) }
+            if !urls.isEmpty {
+                pasteboard.writeObjects(urls as [NSURL])
+            }
+        }
+
         changeCount = pasteboard.changeCount
     }
 
@@ -82,6 +107,9 @@ final class ClipboardStore: ObservableObject {
         guard pasteboard.changeCount != changeCount else { return }
         changeCount = pasteboard.changeCount
 
+        guard let newItem = makeItemFromPasteboard() else { return }
+
+        if let index = items.firstIndex(where: { $0.dedupeKey == newItem.dedupeKey }) {
         guard let value = pasteboard.string(forType: .string)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
             !value.isEmpty
@@ -94,11 +122,63 @@ final class ClipboardStore: ObservableObject {
             existing.copiedAt = .now
             items.insert(existing, at: 0)
         } else {
-            items.insert(ClipboardItem(content: value), at: 0)
+            items.insert(newItem, at: 0)
         }
 
         enforceLimit()
         save()
+    }
+
+    private func makeItemFromPasteboard() -> ClipboardItem? {
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
+            let paths = urls.map(\.path)
+            return ClipboardItem(
+                kind: .files,
+                displayText: "\(paths.count) file(s)",
+                filePaths: paths
+            )
+        }
+
+        if let string = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !string.isEmpty {
+            if URL(string: string)?.scheme != nil {
+                return ClipboardItem(kind: .url, displayText: string)
+            }
+            return ClipboardItem(kind: .text, displayText: string)
+        }
+
+        if let rtf = pasteboard.data(forType: .rtf),
+           let attributed = NSAttributedString(rtf: rtf, documentAttributes: nil) {
+            let preview = attributed.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return ClipboardItem(
+                kind: .rtf,
+                displayText: preview.isEmpty ? "Rich Text" : preview,
+                rawDataBase64: rtf.base64EncodedString()
+            )
+        }
+
+        if let html = pasteboard.data(forType: .html) {
+            let preview = String(data: html, encoding: .utf8)?
+                .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "HTML"
+            return ClipboardItem(
+                kind: .html,
+                displayText: preview.isEmpty ? "HTML" : preview,
+                rawDataBase64: html.base64EncodedString()
+            )
+        }
+
+        if let tiff = pasteboard.data(forType: .tiff), let image = NSImage(data: tiff) {
+            let size = image.size
+            let preview = "Image \(Int(size.width))x\(Int(size.height))"
+            return ClipboardItem(
+                kind: .image,
+                displayText: preview,
+                rawDataBase64: tiff.base64EncodedString()
+            )
+        }
+
+        return nil
     }
 
     private func enforceLimit() {

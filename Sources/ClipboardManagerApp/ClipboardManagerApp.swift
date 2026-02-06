@@ -80,9 +80,20 @@ struct ClipboardRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(item.content)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(item.kind.displayName)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.thinMaterial, in: Capsule())
+                        Spacer()
+                    }
+
+                    Text(item.previewText)
                     .lineLimit(2)
                     .truncationMode(.tail)
+                }
 
                 Spacer()
 
