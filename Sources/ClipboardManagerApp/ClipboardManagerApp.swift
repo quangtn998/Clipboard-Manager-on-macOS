@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct ClipboardManagerApp: App {
     @StateObject private var store = ClipboardStore(maxItems: 120)
+    @State private var isAboutPresented = false
 
     var body: some Scene {
         WindowGroup("Clipboard Manager") {
@@ -11,6 +12,16 @@ struct ClipboardManagerApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                Button("About Clipboard Manager") {
+                    isAboutPresented = true
+                }
+            }
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    openReleaseURL()
+                }
+            }
         }
 
         MenuBarExtra("Clipboard", systemImage: "doc.on.clipboard") {
@@ -18,6 +29,16 @@ struct ClipboardManagerApp: App {
                 .frame(width: 360, height: 420)
         }
         .menuBarExtraStyle(.window)
+        .sheet(isPresented: $isAboutPresented) {
+            AboutView()
+        }
+    }
+
+    private func openReleaseURL() {
+        guard let url = URL(string: "https://github.com/quangtn998/Clipboard-Manager-on-macOS/releases/latest") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 }
 
@@ -119,9 +140,31 @@ struct MenuBarContent: View {
             }
             .buttonStyle(.bordered)
             .padding(.bottom, 8)
+
+            Divider()
+
+            HStack {
+                Text("Version \(Bundle.main.shortVersionString)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Check for Updates…") {
+                    openReleaseURL()
+                }
+                .font(.caption)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 6)
         }
         .padding(.top, 8)
         .onAppear { store.startMonitoring() }
+    }
+
+    private func openReleaseURL() {
+        guard let url = URL(string: "https://github.com/quangtn998/Clipboard-Manager-on-macOS/releases/latest") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 }
 
@@ -216,5 +259,26 @@ struct ClipboardRow: View {
         case .files:
             return "folder"
         }
+    }
+}
+
+struct AboutView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Clipboard Manager")
+                .font(.title2.weight(.semibold))
+            Text("Version \(Bundle.main.shortVersionString)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Link("View latest release", destination: URL(string: "https://github.com/quangtn998/Clipboard-Manager-on-macOS/releases/latest")!)
+        }
+        .padding(24)
+        .frame(minWidth: 320)
+    }
+}
+
+private extension Bundle {
+    var shortVersionString: String {
+        infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 }
