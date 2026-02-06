@@ -1,3 +1,14 @@
+# Swift Package Manager
 .build/
+.swiftpm/
+
+# Xcode
+DerivedData/
+*.xcworkspace/
+xcuserdata/
+
+# macOS
 .DS_Store
+
+# Release artifacts
 dist/

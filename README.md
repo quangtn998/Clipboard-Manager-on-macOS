@@ -22,16 +22,18 @@
 swift run
 ```
 
-> Lưu ý: khi chạy bằng `swift run`, ứng dụng vẫn là app macOS dùng SwiftUI. Bạn có thể mở package này bằng Xcode để build/sign đầy đủ như một desktop app.
+> Lưu ý: trong môi trường Linux/CI sẽ không build được do thiếu framework Apple `SwiftUI`.
+
+---
 
 ## Build bản release để kéo-thả cài đặt
 
-Script đã được thêm sẵn để tạo:
+Repository đã có sẵn script tạo installer drag-and-drop:
 
-1. `ClipboardManager.app`
-2. `ClipboardManager-<version>.dmg` (mở ra và kéo app vào `Applications` để cài)
+- `ClipboardManager.app`
+- `ClipboardManager-<version>.dmg` (mở DMG rồi kéo app vào `Applications`)
 
-### Lệnh build
+### 1) Tạo artifact release
 
 ```bash
 ./scripts/release-macos.sh <version> <build>
@@ -43,12 +45,32 @@ Ví dụ:
 ./scripts/release-macos.sh 1.0.0 1
 ```
 
-Artifact nằm trong thư mục `dist/`.
+Artifact được tạo trong thư mục `dist/`:
 
-### Đẩy lên GitHub Releases
+- `dist/ClipboardManager.app`
+- `dist/ClipboardManager-1.0.0.dmg`
 
-- Upload file `.dmg` trong `dist/` vào phần **Releases**.
-- Người dùng cuối chỉ cần tải `.dmg`, mở file và kéo-thả app vào `Applications`.
+### 2) Phát hành trên GitHub Releases
+
+1. Tạo tag version (ví dụ `v1.0.0`).
+2. Tạo Release tương ứng trên GitHub.
+3. Upload file `.dmg` trong `dist/` vào phần Assets.
+
+Người dùng cuối chỉ cần:
+
+1. Tải file `.dmg`.
+2. Mở file.
+3. Kéo `ClipboardManager.app` vào `Applications`.
+
+### 3) Lưu ý khi phát hành công khai
+
+Hiện script dùng **ad-hoc signing** (`codesign --sign -`) để tiện test nội bộ.
+Nếu muốn phân phối rộng rãi (ít cảnh báo bảo mật hơn), bạn nên:
+
+- Ký bằng chứng chỉ **Developer ID Application**.
+- Notarize với Apple trước khi upload release.
+
+---
 
 ## Cấu trúc chính
 
