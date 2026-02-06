@@ -25,28 +25,67 @@ struct ContentView: View {
     @ObservedObject var store: ClipboardStore
 
     var body: some View {
-        VStack(spacing: 12) {
-            TextField("Tìm kiếm nội dung clipboard...", text: $store.searchQuery)
-                .textFieldStyle(.roundedBorder)
-
-            HStack {
-                Text("Lịch sử: \(store.filteredItems.count) mục")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Xóa mục không ghim") {
-                    store.clearUnpinned()
-                }
-            }
+        VStack(spacing: 16) {
+            header
+            searchBar
 
             List(store.filteredItems) { item in
                 ClipboardRow(item: item, store: store)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
-            .listStyle(.inset)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
-        .padding()
+        .padding(20)
+        .background(
+            LinearGradient(
+                colors: [Color(NSColor.windowBackgroundColor), Color(NSColor.controlBackgroundColor)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .onAppear { store.startMonitoring() }
         .onDisappear { store.stopMonitoring() }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Clipboard Manager")
+                    .font(.title2.weight(.semibold))
+                Text("Lưu trữ & tìm kiếm nhanh nội dung đã sao chép")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text("\(store.filteredItems.count) mục")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.thinMaterial, in: Capsule())
+
+            Button {
+                store.clearUnpinned()
+            } label: {
+                Label("Xóa không ghim", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Tìm kiếm nội dung clipboard...", text: $store.searchQuery)
+                .textFieldStyle(.plain)
+        }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -54,21 +93,34 @@ struct MenuBarContent: View {
     @ObservedObject var store: ClipboardStore
 
     var body: some View {
-        VStack(spacing: 8) {
-            TextField("Search", text: $store.searchQuery)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search", text: $store.searchQuery)
+                    .textFieldStyle(.plain)
+            }
+            .padding(8)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.horizontal)
 
             List(store.filteredItems.prefix(25)) { item in
                 ClipboardRow(item: item, store: store)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
 
-            Button("Clear Unpinned") {
+            Button {
                 store.clearUnpinned()
+            } label: {
+                Label("Clear Unpinned", systemImage: "trash")
             }
+            .buttonStyle(.bordered)
             .padding(.bottom, 8)
         }
+        .padding(.top, 8)
         .onAppear { store.startMonitoring() }
     }
 }
@@ -78,52 +130,64 @@ struct ClipboardRow: View {
     @ObservedObject var store: ClipboardStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.12))
+                    Image(systemName: iconName)
+                        .foregroundStyle(Color.accentColor)
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .frame(width: 36, height: 36)
+
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Text(item.kind.displayName)
+                        Text(item.kind.displayName.uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(item.copiedAt.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.thinMaterial, in: Capsule())
-                        Spacer()
+                            .foregroundStyle(.secondary)
                     }
 
                     Text(item.previewText)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
+                        .font(.body)
+                        .lineLimit(3)
+                        .truncationMode(.tail)
                 }
 
                 Spacer()
 
-                Button {
-                    store.togglePin(item)
-                } label: {
-                    Image(systemName: item.isPinned ? "pin.fill" : "pin")
+                HStack(spacing: 10) {
+                    Button {
+                        store.togglePin(item)
+                    } label: {
+                        Image(systemName: item.isPinned ? "pin.fill" : "pin")
+                    }
+
+                    Button {
+                        store.copyToPasteboard(item)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+
+                    Button(role: .destructive) {
+                        store.remove(item)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
                 }
                 .buttonStyle(.plain)
-
-                Button {
-                    store.copyToPasteboard(item)
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .buttonStyle(.plain)
-
-                Button(role: .destructive) {
-                    store.remove(item)
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.plain)
-            }
-
-            Text(item.copiedAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption)
                 .foregroundStyle(.secondary)
+            }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor))
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+        )
         .contextMenu {
             Button(item.isPinned ? "Bỏ ghim" : "Ghim") {
                 store.togglePin(item)
@@ -134,6 +198,23 @@ struct ClipboardRow: View {
             Button("Xóa", role: .destructive) {
                 store.remove(item)
             }
+        }
+    }
+
+    private var iconName: String {
+        switch item.kind {
+        case .text:
+            return "text.justify"
+        case .url:
+            return "link"
+        case .rtf:
+            return "doc.richtext"
+        case .html:
+            return "chevron.left.slash.chevron.right"
+        case .image:
+            return "photo"
+        case .files:
+            return "folder"
         }
     }
 }

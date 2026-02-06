@@ -120,25 +120,6 @@ Tuỳ chọn notarize:
 - `APPLE_API_KEY_ID`
 - `APPLE_API_ISSUER_ID`
 - `APPLE_API_PRIVATE_KEY` (base64 `.p8`)
-### 2) Phát hành trên GitHub Releases
-
-1. Tạo tag version (ví dụ `v1.0.0`).
-2. Tạo Release tương ứng trên GitHub.
-3. Upload file `.dmg` trong `dist/` vào phần Assets.
-
-Người dùng cuối chỉ cần:
-
-1. Tải file `.dmg`.
-2. Mở file.
-3. Kéo `ClipboardManager.app` vào `Applications`.
-
-### 3) Lưu ý khi phát hành công khai
-
-Hiện script dùng **ad-hoc signing** (`codesign --sign -`) để tiện test nội bộ.
-Nếu muốn phân phối rộng rãi (ít cảnh báo bảo mật hơn), bạn nên:
-
-- Ký bằng chứng chỉ **Developer ID Application**.
-- Notarize với Apple trước khi upload release.
 
 ---
 

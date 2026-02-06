@@ -110,14 +110,6 @@ final class ClipboardStore: ObservableObject {
         guard let newItem = makeItemFromPasteboard() else { return }
 
         if let index = items.firstIndex(where: { $0.dedupeKey == newItem.dedupeKey }) {
-        guard let value = pasteboard.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !value.isEmpty
-        else {
-            return
-        }
-
-        if let index = items.firstIndex(where: { $0.content == value }) {
             var existing = items.remove(at: index)
             existing.copiedAt = .now
             items.insert(existing, at: 0)
