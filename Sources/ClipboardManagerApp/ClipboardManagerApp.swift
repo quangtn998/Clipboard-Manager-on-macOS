@@ -13,7 +13,7 @@ struct ClipboardManagerApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
-            ClipboardCommands()
+            ClipboardCommands(store: store)
         }
 
         Settings {
@@ -35,6 +35,7 @@ struct ClipboardManagerApp: App {
 
 struct ContentView: View {
     @ObservedObject var store: ClipboardStore
+    @State private var isQueuePresented = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -77,6 +78,9 @@ struct ContentView: View {
                 endPoint: .bottomTrailing
             )
         )
+        .sheet(isPresented: $isQueuePresented) {
+            PasteQueueView(store: store)
+        }
         .onAppear { store.startMonitoring() }
         .onDisappear { store.stopMonitoring() }
     }
@@ -99,6 +103,13 @@ struct ContentView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(.thinMaterial, in: Capsule())
+
+            Button {
+                isQueuePresented = true
+            } label: {
+                Label("Queue (\(store.pasteQueue.count))", systemImage: "tray.full")
+            }
+            .buttonStyle(.bordered)
 
             Menu {
                 Button("Clear All") {
@@ -180,6 +191,33 @@ struct MenuBarContent: View {
 
             Divider()
 
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Paste Queue", systemImage: "tray.full")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(store.pasteQueue.count)")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 8) {
+                    Button("Paste Next") {
+                        store.pasteNextFromQueue()
+                    }
+                    .keyboardShortcut("n", modifiers: [.control, .option])
+                    .buttonStyle(.borderedProminent)
+                    Button("Clear Queue") {
+                        store.clearQueue()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 6)
+
+            Divider()
+
             HStack {
                 Text("Version \(Bundle.main.shortVersionString)")
                     .font(.caption)
@@ -206,6 +244,7 @@ struct MenuBarContent: View {
 }
 
 struct ClipboardCommands: Commands {
+    @ObservedObject var store: ClipboardStore
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
@@ -217,6 +256,15 @@ struct ClipboardCommands: Commands {
         CommandGroup(after: .appInfo) {
             Button("Check for Updates…") {
                 openReleaseURL()
+            }
+        }
+        CommandGroup(after: .pasteboard) {
+            Button("Paste Next from Queue") {
+                store.pasteNextFromQueue()
+            }
+            .keyboardShortcut("n", modifiers: [.control, .option])
+            Button("Clear Paste Queue") {
+                store.clearQueue()
             }
         }
     }
@@ -268,6 +316,12 @@ struct ClipboardRow: View {
                     }
 
                     Button {
+                        store.addToQueue(item)
+                    } label: {
+                        Image(systemName: "tray.and.arrow.down")
+                    }
+
+                    Button {
                         store.copyToPasteboard(item)
                     } label: {
                         Image(systemName: "doc.on.doc")
@@ -295,6 +349,9 @@ struct ClipboardRow: View {
         .contextMenu {
             Button(item.isPinned ? "Bỏ ghim" : "Ghim") {
                 store.togglePin(item)
+            }
+            Button("Add to Paste Queue") {
+                store.addToQueue(item)
             }
             Button("Sao chép lại") {
                 store.copyToPasteboard(item)
@@ -339,6 +396,8 @@ struct ClipboardRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(NSColor.textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .lineLimit(3)
+                    .truncationMode(.tail)
             } else {
                 Text(item.previewText)
                     .font(.body)
