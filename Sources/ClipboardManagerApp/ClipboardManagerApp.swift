@@ -396,6 +396,8 @@ struct ClipboardRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(NSColor.textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .lineLimit(3)
+                    .truncationMode(.tail)
             } else {
                 Text(item.previewText)
                     .font(.body)
