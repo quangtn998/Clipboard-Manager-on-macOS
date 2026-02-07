@@ -26,11 +26,6 @@ struct PasteQueueView: View {
         }
         .padding(20)
         .frame(minWidth: 520, minHeight: 420)
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                EditButton()
-            }
-        }
     }
 
     private var header: some View {
@@ -43,6 +38,9 @@ struct PasteQueueView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            EditButton()
+                .disabled(store.pasteQueue.isEmpty)
+
             Button("Clear All") {
                 store.clearQueue()
             }
