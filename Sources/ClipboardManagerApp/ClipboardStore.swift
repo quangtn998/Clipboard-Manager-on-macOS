@@ -11,7 +11,9 @@ final class ClipboardStore: ObservableObject {
             updateDerivedData()
         }
     }
+    @Published private(set) var pasteQueue: [PasteQueueEntry] = []
     @Published var searchQuery: String = ""
+    @Published private(set) var filteredItems: [ClipboardItem] = []
 
     @Published var maxItemsLimit: Int {
         didSet { handleSettingsChange() }
@@ -22,6 +24,9 @@ final class ClipboardStore: ObservableObject {
     @Published var keepPinnedOnClear: Bool {
         didSet { handleSettingsChange() }
     }
+    @Published var autoRemoveAfterPaste: Bool {
+        didSet { handleQueueSettingsChange() }
+    }
     @Published private(set) var storageUsageBytes: Int = 0
     @Published private(set) var stats: ClipboardStats = ClipboardStats.empty
 
@@ -29,6 +34,7 @@ final class ClipboardStore: ObservableObject {
     private var changeCount: Int
     private var pollingTask: Task<Void, Never>?
     private var metadataTasks: [UUID: Task<Void, Never>] = [:]
+    private var cancellables: Set<AnyCancellable> = []
     private let defaults = UserDefaults.standard
     private let maxLimit = 1000
 
@@ -43,14 +49,17 @@ final class ClipboardStore: ObservableObject {
         let storedMax = defaults.integer(forKey: SettingsKey.maxItemsLimit)
         let storedRetention = defaults.integer(forKey: SettingsKey.retentionDays)
         let storedKeepPinned = defaults.object(forKey: SettingsKey.keepPinnedOnClear) as? Bool
+        let storedAutoRemove = defaults.object(forKey: SettingsKey.autoRemoveAfterPaste) as? Bool
         let initialMax = storedMax == 0 ? maxItems : storedMax
         self.maxItemsLimit = min(max(initialMax, 1), maxLimit)
         self.retentionDays = max(storedRetention, 0)
         self.keepPinnedOnClear = storedKeepPinned ?? true
+        self.autoRemoveAfterPaste = storedAutoRemove ?? true
         self.changeCount = pasteboard.changeCount
         load()
         applyRetentionPolicy()
         updateDerivedData()
+        bindSearch()
     }
 
     deinit {
@@ -58,14 +67,22 @@ final class ClipboardStore: ObservableObject {
         metadataTasks.values.forEach { $0.cancel() }
     }
 
-    var filteredItems: [ClipboardItem] {
-        let criteria = SearchCriteria.parse(from: searchQuery)
-        let sortedItems = ordered(items)
-        guard !criteria.isEmpty else { return sortedItems }
-
-        return sortedItems.filter { item in
-            criteria.matches(item: item)
+    private func bindSearch() {
+        Publishers.CombineLatest(
+            $items,
+            $searchQuery
+                .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
+                .removeDuplicates()
+        )
+        .map { [weak self] items, query -> [ClipboardItem] in
+            guard let self else { return [] }
+            let criteria = SearchCriteria.parse(from: query)
+            let sortedItems = self.ordered(items)
+            guard !criteria.isEmpty else { return sortedItems }
+            return sortedItems.filter { criteria.matches(item: $0) }
         }
+        .receive(on: RunLoop.main)
+        .assign(to: &$filteredItems)
     }
 
     func startMonitoring() {
@@ -112,6 +129,45 @@ final class ClipboardStore: ObservableObject {
         }
 
         changeCount = pasteboard.changeCount
+    }
+
+    func addToQueue(_ item: ClipboardItem) {
+        let entry = PasteQueueEntry(item: item, sourceItemID: item.id)
+        pasteQueue.append(entry)
+        save()
+    }
+
+    func addItemsToQueue(_ items: [ClipboardItem]) {
+        let newEntries = items.map { PasteQueueEntry(item: $0, sourceItemID: $0.id) }
+        pasteQueue.append(contentsOf: newEntries)
+        save()
+    }
+
+    func removeFromQueue(_ entry: PasteQueueEntry) {
+        pasteQueue.removeAll { $0.id == entry.id }
+        save()
+    }
+
+    func clearQueue() {
+        pasteQueue.removeAll()
+        save()
+    }
+
+    func moveQueueItems(from offsets: IndexSet, to destination: Int) {
+        pasteQueue.move(fromOffsets: offsets, toOffset: destination)
+        save()
+    }
+
+    func pasteNextFromQueue() {
+        guard !pasteQueue.isEmpty else { return }
+        let next = pasteQueue[0]
+        copyToPasteboard(next.item)
+        if autoRemoveAfterPaste {
+            pasteQueue.removeFirst()
+        } else {
+            pasteQueue.append(pasteQueue.removeFirst())
+        }
+        save()
     }
 
     func remove(_ item: ClipboardItem) {
@@ -378,15 +434,23 @@ final class ClipboardStore: ObservableObject {
 
     private func load() {
         guard let data = try? Data(contentsOf: persistenceURL) else { return }
-        guard let decoded = try? JSONDecoder().decode([ClipboardItem].self, from: data) else { return }
-        items = decoded
+        if let decoded = try? JSONDecoder().decode(ClipboardPersistence.self, from: data) {
+            items = decoded.items
+            pasteQueue = decoded.pasteQueue
+        } else if let decodedItems = try? JSONDecoder().decode([ClipboardItem].self, from: data) {
+            items = decodedItems
+            pasteQueue = []
+        } else {
+            return
+        }
         ensurePinnedOrder()
         fetchMissingURLMetadata()
         enforceLimit()
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(items) else { return }
+        let state = ClipboardPersistence(items: items, pasteQueue: pasteQueue)
+        guard let data = try? JSONEncoder().encode(state) else { return }
         try? data.write(to: persistenceURL, options: .atomic)
     }
 
@@ -406,6 +470,11 @@ final class ClipboardStore: ObservableObject {
         defaults.set(keepPinnedOnClear, forKey: SettingsKey.keepPinnedOnClear)
         applyRetentionPolicy()
         enforceLimit()
+        save()
+    }
+
+    private func handleQueueSettingsChange() {
+        defaults.set(autoRemoveAfterPaste, forKey: SettingsKey.autoRemoveAfterPaste)
         save()
     }
 
@@ -483,6 +552,12 @@ private enum SettingsKey {
     static let maxItemsLimit = "settings.maxItemsLimit"
     static let retentionDays = "settings.retentionDays"
     static let keepPinnedOnClear = "settings.keepPinnedOnClear"
+    static let autoRemoveAfterPaste = "settings.autoRemoveAfterPaste"
+}
+
+private struct ClipboardPersistence: Codable {
+    var items: [ClipboardItem]
+    var pasteQueue: [PasteQueueEntry]
 }
 
 struct ClipboardStats: Equatable {
