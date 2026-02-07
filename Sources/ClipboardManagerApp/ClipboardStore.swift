@@ -13,6 +13,7 @@ final class ClipboardStore: ObservableObject {
     }
     @Published private(set) var pasteQueue: [PasteQueueEntry] = []
     @Published var searchQuery: String = ""
+    @Published private(set) var filteredItems: [ClipboardItem] = []
 
     @Published var maxItemsLimit: Int {
         didSet { handleSettingsChange() }
@@ -33,6 +34,7 @@ final class ClipboardStore: ObservableObject {
     private var changeCount: Int
     private var pollingTask: Task<Void, Never>?
     private var metadataTasks: [UUID: Task<Void, Never>] = [:]
+    private var cancellables: Set<AnyCancellable> = []
     private let defaults = UserDefaults.standard
     private let maxLimit = 1000
 
@@ -57,6 +59,7 @@ final class ClipboardStore: ObservableObject {
         load()
         applyRetentionPolicy()
         updateDerivedData()
+        bindSearch()
     }
 
     deinit {
@@ -64,14 +67,22 @@ final class ClipboardStore: ObservableObject {
         metadataTasks.values.forEach { $0.cancel() }
     }
 
-    var filteredItems: [ClipboardItem] {
-        let criteria = SearchCriteria.parse(from: searchQuery)
-        let sortedItems = ordered(items)
-        guard !criteria.isEmpty else { return sortedItems }
-
-        return sortedItems.filter { item in
-            criteria.matches(item: item)
+    private func bindSearch() {
+        Publishers.CombineLatest(
+            $items,
+            $searchQuery
+                .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
+                .removeDuplicates()
+        )
+        .map { [weak self] items, query -> [ClipboardItem] in
+            guard let self else { return [] }
+            let criteria = SearchCriteria.parse(from: query)
+            let sortedItems = self.ordered(items)
+            guard !criteria.isEmpty else { return sortedItems }
+            return sortedItems.filter { criteria.matches(item: $0) }
         }
+        .receive(on: RunLoop.main)
+        .assign(to: &$filteredItems)
     }
 
     func startMonitoring() {
