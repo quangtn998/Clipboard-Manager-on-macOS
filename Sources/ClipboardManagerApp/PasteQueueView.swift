@@ -27,7 +27,9 @@ struct PasteQueueView: View {
         .padding(20)
         .frame(minWidth: 520, minHeight: 420)
         .toolbar {
-            EditButton()
+            ToolbarItem(placement: .automatic) {
+                EditButton()
+            }
         }
     }
 
@@ -96,7 +98,7 @@ private struct PasteQueueRow: View {
             if index == 0 {
                 Label("Next", systemImage: "play.fill")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.accent)
+                    .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .background(Color.accentColor.opacity(0.12), in: Capsule())
