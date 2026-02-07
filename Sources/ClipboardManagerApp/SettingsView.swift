@@ -61,6 +61,10 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Paste Queue") {
+                Toggle("Auto-remove item after paste", isOn: $store.autoRemoveAfterPaste)
+            }
         }
         .frame(minWidth: 420, minHeight: 360)
         .padding()
